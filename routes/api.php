@@ -6,15 +6,16 @@ use App\Http\Controllers\Api\BookApiController;
 use App\Http\Controllers\Api\AuthorApiController;
 use App\Http\Controllers\Api\GenreApiController;
 use App\Http\Controllers\Api\ReviewApiController;
+use App\Http\Middleware\CheckTokenExpiry;
 
 Route::post('/register', [AuthApiController::class, 'register']);
 Route::post('/login', [AuthApiController::class, 'login']);
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'check.token.expiry'])->group(function () {
     Route::apiResource('books', BookApiController::class);
     Route::apiResource('authors', AuthorApiController::class);
     Route::apiResource('genres', GenreApiController::class);
     Route::apiResource('reviews', ReviewApiController::class);
-    
+
     Route::post('/logout', [AuthApiController::class, 'logout']);
 });

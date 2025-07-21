@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 
 class AuthApiController extends Controller
 {
@@ -45,15 +46,40 @@ class AuthApiController extends Controller
             ]);
         }
 
-        $user->tokens()->delete(); // invalidate old tokens
-        $token = $user->createToken('libretto-token')->plainTextToken;
+        // Check for an existing token that’s not expired
+        $validToken = $user->tokens()
+            ->where('name', 'libretto-token')
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
 
-        return response()->json(['token' => $token, 'user' => $user]);
+        if ($validToken) {
+            return response()->json([
+                'message' => 'Token is still valid. Please continue using your previously issued token.',
+                'token' => $validToken->plain_token,
+                'expires_at' => $validToken->expires_at,
+                'user' => $user,
+            ]);
+        }
+
+        // Delete expired tokens
+        $user->tokens()->where('expires_at', '<=', now())->delete();
+
+        // Create a new token
+        $token = $user->createToken('libretto-token');
+        $token->accessToken->expires_at = now()->addHours(24);
+        $token->accessToken->plain_token = $token->plainTextToken;
+        $token->accessToken->save();
+
+        return response()->json([
+            'token' => $token->plainTextToken,
+            'expires_at' => $token->accessToken->expires_at,
+            'user' => $user,
+        ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out']);
     }
 }
